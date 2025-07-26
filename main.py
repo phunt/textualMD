@@ -1,10 +1,13 @@
 import sys
+import tempfile
+import webbrowser
 from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Markdown, Static
 from textual.containers import VerticalScroll
 from textual.reactive import reactive
 from textual.binding import Binding
+from markdown import markdown
 
 class MarkdownViewerApp(App):
     """A Textual app for viewing Markdown files."""
@@ -32,6 +35,7 @@ class MarkdownViewerApp(App):
     BINDINGS = [
         Binding("d", "toggle_dark", "Dark mode", show=True),
         Binding("r", "toggle_raw", "Raw/Rendered", show=True),
+        Binding("o", "open_browser", "Open in browser", show=True),
         Binding("q", "quit", "Quit", show=True)
     ]
 
@@ -84,6 +88,108 @@ class MarkdownViewerApp(App):
     def action_toggle_raw(self) -> None:
         """Toggle between raw and rendered markdown view."""
         self.show_raw = not self.show_raw
+
+    def action_open_browser(self) -> None:
+        """Open the markdown in the default web browser (respects current view mode)."""
+        if self.show_raw:
+            # Show raw markdown as plain text
+            html_document = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>{self.markdown_path.name if self.markdown_path else 'Markdown Viewer'} (Raw)</title>
+                <style>
+                    body {{
+                        font-family: 'Courier New', Courier, monospace;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 900px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background-color: #f5f5f5;
+                    }}
+                    pre {{
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                        background-color: white;
+                        padding: 20px;
+                        border: 1px solid #ddd;
+                        border-radius: 5px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <pre>{self.markdown_content}</pre>
+            </body>
+            </html>
+            """
+        else:
+            # Convert markdown to HTML
+            html_content = markdown(self.markdown_content)
+            
+            # Create a complete HTML document with styling
+            html_document = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>{self.markdown_path.name if self.markdown_path else 'Markdown Viewer'}</title>
+                <style>
+                    body {{
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 800px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background-color: #f5f5f5;
+                    }}
+                    pre {{
+                        background-color: #f0f0f0;
+                        padding: 10px;
+                        border-radius: 5px;
+                        overflow-x: auto;
+                    }}
+                    code {{
+                        background-color: #f0f0f0;
+                        padding: 2px 4px;
+                        border-radius: 3px;
+                        font-family: 'Courier New', Courier, monospace;
+                    }}
+                    blockquote {{
+                        border-left: 4px solid #ddd;
+                        margin: 0;
+                        padding-left: 20px;
+                        color: #666;
+                    }}
+                    h1, h2, h3, h4, h5, h6 {{
+                        color: #111;
+                        margin-top: 24px;
+                        margin-bottom: 16px;
+                    }}
+                    a {{
+                        color: #0066cc;
+                        text-decoration: none;
+                    }}
+                    a:hover {{
+                        text-decoration: underline;
+                    }}
+                </style>
+            </head>
+            <body>
+                {html_content}
+            </body>
+            </html>
+            """
+        
+        # Create a temporary HTML file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as tmp_file:
+            tmp_file.write(html_document)
+            tmp_file_path = tmp_file.name
+        
+        # Open the file in the default browser
+        webbrowser.open(f'file://{tmp_file_path}')
 
 if __name__ == "__main__":
     # Check if a markdown file was provided as argument
