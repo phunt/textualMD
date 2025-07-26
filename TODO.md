@@ -8,7 +8,7 @@
 * [x] implement search functionality within the markdown content (s key)
 * [x] add table of contents panel showing document outline (toggle with "t" key)
 * [x] support watching file for changes and auto-reload
-* [] add support for markdown extensions - mermaid diagrams
+* [x] add support for markdown extensions - mermaid diagrams
 * [] add support for markdown extensions - math equations
 * [] add export functionality (PDF, HTML, DOCX) via "e" key
 * [] implement zoom in/out for text size (Ctrl+Plus/Minus)

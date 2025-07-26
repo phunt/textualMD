@@ -136,6 +136,7 @@ class MarkdownViewerApp(App):
         self.file_watcher_thread = None
         self.file_last_modified = None
         self.watching = False
+        self.mermaid_blocks = []  # Store mermaid diagram locations
         
         if self.markdown_path and self.markdown_path.exists():
             self.markdown_content = self.markdown_path.read_text()
@@ -188,6 +189,12 @@ class MarkdownViewerApp(App):
         else:
             markdown_view = self.query_one("#markdown-view", Markdown)
             markdown_view.focus()
+        
+        # Process markdown for Mermaid diagrams
+        processed_content = self.process_markdown_with_mermaid()
+        if not self.show_raw:
+            markdown_view = self.query_one("#markdown-view", Markdown)
+            markdown_view.update(processed_content)
 
     def on_unmount(self) -> None:
         """Clean up when the app exits."""
@@ -247,12 +254,18 @@ class MarkdownViewerApp(App):
                 markdown_view = self.query_one("#markdown-view", Markdown)
                 raw_view = self.query_one("#raw-view", Static)
                 
+                # Process markdown for Mermaid in rendered view
+                if not self.show_raw:
+                    processed_content = self.process_markdown_with_mermaid()
+                    markdown_view.update(processed_content)
+                else:
+                    markdown_view.update(self.markdown_content)
+                
+                raw_view.update(self.markdown_content)
+                
                 if self.search_term:
                     # Re-run search if active
                     self.perform_search()
-                else:
-                    markdown_view.update(self.markdown_content)
-                    raw_view.update(self.markdown_content)
                 
                 # Rebuild table of contents
                 self.build_table_of_contents()
@@ -267,6 +280,75 @@ class MarkdownViewerApp(App):
                 
         except Exception as e:
             self.log(f"Error reloading file: {e}")
+
+    def detect_mermaid_blocks(self) -> list:
+        """Detect Mermaid diagram blocks in the markdown content."""
+        mermaid_blocks = []
+        lines = self.markdown_content.split('\n')
+        in_mermaid_block = False
+        block_start = -1
+        block_content = []
+        
+        for i, line in enumerate(lines):
+            if line.strip().startswith('```mermaid'):
+                in_mermaid_block = True
+                block_start = i
+                block_content = []
+            elif in_mermaid_block and line.strip() == '```':
+                in_mermaid_block = False
+                mermaid_blocks.append({
+                    'start': block_start,
+                    'end': i,
+                    'content': '\n'.join(block_content)
+                })
+            elif in_mermaid_block:
+                block_content.append(line)
+        
+        return mermaid_blocks
+
+    def process_markdown_with_mermaid(self) -> str:
+        """Process markdown content to handle Mermaid diagrams."""
+        self.mermaid_blocks = self.detect_mermaid_blocks()
+        
+        if not self.mermaid_blocks:
+            return self.markdown_content
+        
+        # Create a copy of the content with Mermaid placeholders
+        lines = self.markdown_content.split('\n')
+        processed_lines = []
+        current_line = 0
+        
+        for block in self.mermaid_blocks:
+            # Add lines before the Mermaid block
+            processed_lines.extend(lines[current_line:block['start']])
+            
+            # Add a placeholder for the Mermaid diagram
+            processed_lines.append('```')
+            processed_lines.append('╔══════════════════════════════════════╗')
+            processed_lines.append('║        MERMAID DIAGRAM               ║')
+            processed_lines.append('║                                      ║')
+            processed_lines.append('║  [View in browser with "o" key]      ║')
+            processed_lines.append('║                                      ║')
+            
+            # Add a preview of the Mermaid content
+            preview_lines = block['content'].strip().split('\n')[:3]
+            for line in preview_lines:
+                if len(line) > 36:
+                    line = line[:33] + '...'
+                processed_lines.append(f'║  {line:<36} ║')
+            
+            if len(preview_lines) < len(block['content'].strip().split('\n')):
+                processed_lines.append('║  ...                                 ║')
+            
+            processed_lines.append('╚══════════════════════════════════════╝')
+            processed_lines.append('```')
+            
+            current_line = block['end'] + 1
+        
+        # Add remaining lines
+        processed_lines.extend(lines[current_line:])
+        
+        return '\n'.join(processed_lines)
 
     def parse_markdown_headers(self) -> list:
         """Parse markdown content to extract headers."""
@@ -392,6 +474,9 @@ class MarkdownViewerApp(App):
             markdown_view.display = False
             raw_view.display = True
         else:
+            # Process markdown for Mermaid when switching to rendered view
+            processed_content = self.process_markdown_with_mermaid()
+            markdown_view.update(processed_content)
             markdown_view.display = True
             raw_view.display = False
 
@@ -619,7 +704,13 @@ class MarkdownViewerApp(App):
             markdown_view = self.query_one("#markdown-view", Markdown)
             raw_view = self.query_one("#raw-view", Static)
             
-            markdown_view.update(self.markdown_content)
+            # Process markdown for Mermaid in rendered view
+            if not self.show_raw:
+                processed_content = self.process_markdown_with_mermaid()
+                markdown_view.update(processed_content)
+            else:
+                markdown_view.update(self.markdown_content)
+            
             raw_view.update(self.markdown_content)
             
             # Update the header
@@ -701,16 +792,20 @@ class MarkdownViewerApp(App):
             </html>
             """
         else:
-            # Convert markdown to HTML
-            html_content = markdown(self.markdown_content)
+            # Convert markdown to HTML with Mermaid support
+            html_content = self.convert_markdown_with_mermaid()
             
-            # Create a complete HTML document with styling
+            # Create a complete HTML document with styling and Mermaid support
             html_document = f"""
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="utf-8">
                 <title>{self.markdown_path.name if self.markdown_path else 'Markdown Viewer'}</title>
+                <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+                <script>
+                    mermaid.initialize({{ startOnLoad: true, theme: 'default' }});
+                </script>
                 <style>
                     body {{
                         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -751,6 +846,10 @@ class MarkdownViewerApp(App):
                     a:hover {{
                         text-decoration: underline;
                     }}
+                    .mermaid {{
+                        text-align: center;
+                        margin: 20px 0;
+                    }}
                 </style>
             </head>
             <body>
@@ -766,6 +865,38 @@ class MarkdownViewerApp(App):
         
         # Open the file in the default browser
         webbrowser.open(f'file://{tmp_file_path}')
+
+    def convert_markdown_with_mermaid(self) -> str:
+        """Convert markdown to HTML with Mermaid diagram support."""
+        # First, detect Mermaid blocks
+        self.mermaid_blocks = self.detect_mermaid_blocks()
+        
+        if not self.mermaid_blocks:
+            # No Mermaid blocks, just convert normally
+            return markdown(self.markdown_content)
+        
+        # Process markdown with Mermaid blocks
+        lines = self.markdown_content.split('\n')
+        processed_lines = []
+        current_line = 0
+        
+        for block in self.mermaid_blocks:
+            # Add lines before the Mermaid block
+            processed_lines.extend(lines[current_line:block['start']])
+            
+            # Add Mermaid div
+            processed_lines.append(f'<div class="mermaid">')
+            processed_lines.append(block['content'])
+            processed_lines.append('</div>')
+            
+            current_line = block['end'] + 1
+        
+        # Add remaining lines
+        processed_lines.extend(lines[current_line:])
+        
+        # Convert the processed markdown to HTML
+        processed_markdown = '\n'.join(processed_lines)
+        return markdown(processed_markdown)
 
 if __name__ == "__main__":
     # Check if a markdown file was provided as argument
