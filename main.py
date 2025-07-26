@@ -3,7 +3,7 @@ import tempfile
 import webbrowser
 from pathlib import Path
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Markdown, Static, DirectoryTree, Input
+from textual.widgets import Header, Footer, Markdown, Static, DirectoryTree, Input, Tree
 from textual.containers import VerticalScroll, Horizontal
 from textual.reactive import reactive
 from textual.binding import Binding
@@ -31,6 +31,24 @@ class MarkdownViewerApp(App):
     
     DirectoryTree.visible {
         display: block;
+    }
+    
+    #toc-panel {
+        width: 35;
+        height: 100%;
+        dock: right;
+        display: none;
+        border-left: solid $primary;
+        padding: 1;
+    }
+    
+    #toc-panel.visible {
+        display: block;
+    }
+    
+    #toc-tree {
+        width: 100%;
+        height: 100%;
     }
     
     #main-container {
@@ -94,6 +112,7 @@ class MarkdownViewerApp(App):
         Binding("r", "toggle_raw", "Raw/Rendered", show=True),
         Binding("o", "open_browser", "Open in browser", show=True),
         Binding("f", "toggle_file_tree", "File tree", show=True),
+        Binding("t", "toggle_toc", "Table of contents", show=True),
         Binding("s", "toggle_search", "Search", show=True),
         Binding("q", "quit", "Quit", show=True)
     ]
@@ -101,6 +120,7 @@ class MarkdownViewerApp(App):
     # Reactive variables
     show_raw = reactive(False)
     show_file_tree = reactive(False)
+    show_toc = reactive(False)
     show_search = reactive(False)
     search_term = reactive("")
     search_results = reactive(list, recompose=False)
@@ -134,6 +154,10 @@ class MarkdownViewerApp(App):
             with VerticalScroll(id="content-area"):
                 yield Markdown(self.markdown_content, id="markdown-view")
                 yield Static(self.markdown_content, id="raw-view")
+            
+            # Table of contents panel
+            with VerticalScroll(id="toc-panel"):
+                yield Tree("Table of Contents", id="toc-tree")
         
         yield Footer()
 
@@ -141,6 +165,7 @@ class MarkdownViewerApp(App):
         """Initialize the view state when the app mounts."""
         self.update_view()
         self.update_header_title()
+        self.build_table_of_contents()
         # Don't update visibility on mount - let the CSS handle initial state
         # The reactive variables are already False by default
         
@@ -152,6 +177,57 @@ class MarkdownViewerApp(App):
         else:
             markdown_view = self.query_one("#markdown-view", Markdown)
             markdown_view.focus()
+
+    def parse_markdown_headers(self) -> list:
+        """Parse markdown content to extract headers."""
+        headers = []
+        lines = self.markdown_content.split('\n')
+        
+        for line_num, line in enumerate(lines):
+            # Check for ATX-style headers (# Header)
+            match = re.match(r'^(#{1,6})\s+(.+)', line.strip())
+            if match:
+                level = len(match.group(1))
+                title = match.group(2).strip()
+                headers.append({
+                    'level': level,
+                    'title': title,
+                    'line': line_num
+                })
+        
+        return headers
+
+    def build_table_of_contents(self) -> None:
+        """Build the table of contents tree from markdown headers."""
+        toc_tree = self.query_one("#toc-tree", Tree)
+        toc_tree.clear()
+        
+        headers = self.parse_markdown_headers()
+        if not headers:
+            toc_tree.root.add_leaf("No headers found")
+            return
+        
+        # Build tree structure based on header levels
+        node_stack = [(0, toc_tree.root)]  # (level, node)
+        
+        for header in headers:
+            level = header['level']
+            title = header['title']
+            line = header['line']
+            
+            # Find the appropriate parent node
+            while node_stack and node_stack[-1][0] >= level:
+                node_stack.pop()
+            
+            # Add the new node
+            parent_node = node_stack[-1][1] if node_stack else toc_tree.root
+            new_node = parent_node.add(f"{title}", data=line)
+            
+            # Add to stack for potential children
+            node_stack.append((level, new_node))
+        
+        # Expand the root to show the TOC
+        toc_tree.root.expand()
 
     def update_header_title(self) -> None:
         """Update the header title with filename and current mode."""
@@ -172,6 +248,10 @@ class MarkdownViewerApp(App):
     def watch_show_file_tree(self, show_file_tree: bool) -> None:
         """React to changes in the show_file_tree state."""
         self.update_file_tree_visibility()
+
+    def watch_show_toc(self, show_toc: bool) -> None:
+        """React to changes in the show_toc state."""
+        self.update_toc_visibility()
 
     def watch_show_search(self, show_search: bool) -> None:
         """React to changes in the show_search state."""
@@ -231,6 +311,14 @@ class MarkdownViewerApp(App):
             file_tree.add_class("visible")
         else:
             file_tree.remove_class("visible")
+
+    def update_toc_visibility(self) -> None:
+        """Update the visibility of the table of contents panel."""
+        toc_panel = self.query_one("#toc-panel")
+        if self.show_toc:
+            toc_panel.add_class("visible")
+        else:
+            toc_panel.remove_class("visible")
 
     def update_search_visibility(self) -> None:
         """Update the visibility of the search panel."""
@@ -403,6 +491,23 @@ class MarkdownViewerApp(App):
                 # If scrolling fails, just log it
                 self.log(f"Would scroll to line {lines_before}")
 
+    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+        """Handle TOC item selection to jump to the header."""
+        if event.node.data is not None:
+            line_number = event.node.data
+            
+            # Get the scrollable container
+            scroll_container = self.query_one("#content-area", VerticalScroll)
+            
+            # Calculate scroll position
+            # This is approximate - each line is roughly 1 unit
+            try:
+                viewport_height = scroll_container.size.height
+                target_y = max(0, line_number - viewport_height // 3)
+                scroll_container.scroll_to(y=target_y, animate=True)
+            except:
+                self.log(f"Would scroll to line {line_number}")
+
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree."""
         # Only process markdown files
@@ -424,6 +529,9 @@ class MarkdownViewerApp(App):
             
             # Update the header
             self.update_header_title()
+            
+            # Rebuild table of contents
+            self.build_table_of_contents()
             
             # Clear search if active
             if self.show_search:
@@ -450,6 +558,10 @@ class MarkdownViewerApp(App):
     def action_toggle_file_tree(self) -> None:
         """Toggle the file tree panel."""
         self.show_file_tree = not self.show_file_tree
+
+    def action_toggle_toc(self) -> None:
+        """Toggle the table of contents panel."""
+        self.show_toc = not self.show_toc
 
     def action_toggle_search(self) -> None:
         """Toggle the search panel."""

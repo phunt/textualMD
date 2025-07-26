@@ -6,7 +6,7 @@
 * [x] update the header to display the render mode we are currently in
 * [x] add file tree/explorer panel to browse and open markdown files (toggle with "f" key)
 * [x] implement search functionality within the markdown content (s key)
-* [] add table of contents panel showing document outline (toggle with "t" key)
+* [x] add table of contents panel showing document outline (toggle with "t" key)
 * [] support watching file for changes and auto-reload
 * [] add export functionality (PDF, HTML, DOCX) via "e" key
 * [] implement zoom in/out for text size (Ctrl+Plus/Minus)
