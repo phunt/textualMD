@@ -12,6 +12,7 @@ from textual.binding import Binding
 from markdown import markdown
 from rich.text import Text
 from rich.syntax import Syntax
+from rich.markup import escape
 import re
 
 class MarkdownViewerApp(App):
@@ -279,7 +280,7 @@ class MarkdownViewerApp(App):
                     fixed_content = self.fix_bullet_lists(self.markdown_content)
                     markdown_view.update(fixed_content)
                 
-                raw_view.update(self.markdown_content)
+                raw_view.update(Text(escape(self.markdown_content)))
                 
                 if self.search_term:
                     # Re-run search if active
@@ -494,7 +495,7 @@ class MarkdownViewerApp(App):
                 raw_view = self.query_one("#raw-view", Static)
                 fixed_content = self.fix_bullet_lists(self.markdown_content)
                 markdown_view.update(fixed_content)
-                raw_view.update(self.markdown_content)
+                raw_view.update(Text(escape(self.markdown_content)))
                 
                 # Focus back on content
                 if self.show_raw:
@@ -619,7 +620,7 @@ class MarkdownViewerApp(App):
             # Reset to plain content if no search
             if self.show_raw:
                 raw_view = self.query_one("#raw-view", Static)
-                raw_view.update(self.markdown_content)
+                raw_view.update(Text(escape(self.markdown_content)))
             else:
                 markdown_view = self.query_one("#markdown-view", Markdown)
                 markdown_view.update(self.markdown_content)
@@ -664,11 +665,11 @@ class MarkdownViewerApp(App):
         raw_view = self.query_one("#raw-view", Static)
         
         if not self.search_results:
-            raw_view.update(self.markdown_content)
+            raw_view.update(Text(escape(self.markdown_content)))
             return
         
-        # Create a Rich Text object with the content
-        text = Text(self.markdown_content)
+        # Create a Rich Text object with the escaped content
+        text = Text(escape(self.markdown_content))
         
         # Apply highlighting to all matches
         for i, (start, end) in enumerate(self.search_results):
@@ -756,7 +757,7 @@ class MarkdownViewerApp(App):
                 fixed_content = self.fix_bullet_lists(self.markdown_content)
                 markdown_view.update(fixed_content)
             
-            raw_view.update(self.markdown_content)
+            raw_view.update(Text(escape(self.markdown_content)))
             
             # Update the header
             self.update_header_title()
@@ -780,7 +781,7 @@ class MarkdownViewerApp(App):
             raw_view = self.query_one("#raw-view", Static)
             fixed_content = self.fix_bullet_lists(self.markdown_content)
             markdown_view.update(fixed_content)
-            raw_view.update(self.markdown_content)
+            raw_view.update(Text(escape(self.markdown_content)))
 
     def action_toggle_dark(self) -> None:
         """Toggle dark mode."""
@@ -946,7 +947,7 @@ Press 'o' to open the HTML file in your browser now!
         markdown_view = self.query_one("#markdown-view", Markdown)
         raw_view = self.query_one("#raw-view", Static)
         markdown_view.update(dialog_content)
-        raw_view.update(dialog_content)
+        raw_view.update(Text(escape(dialog_content)))
         
         # Update header
         self.title = "Export Complete"
@@ -967,12 +968,12 @@ Press 'o' to open the HTML file in your browser now!
         raw_view = self.query_one("#raw-view", Static)
         
         if self.show_raw:
-            raw_view.update(self.markdown_content)
+            raw_view.update(Text(escape(self.markdown_content)))
         else:
             processed_content = self.process_markdown_with_mermaid()
             markdown_view.update(processed_content)
         
-        raw_view.update(self.markdown_content)
+        raw_view.update(Text(escape(self.markdown_content)))
         
         # Update header
         self.update_header_title()
