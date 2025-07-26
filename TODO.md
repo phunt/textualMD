@@ -3,5 +3,5 @@
 * [x] enable switching between raw text and rendered markdown in the terminal via the "r" key
 * [x] enable viewing rendered markdown in the browser, use "open" command
 * [x] update the header to display the file being displayed
-* [] update the header to display the mode we are currently in
+* [x] update the header to display the render mode we are currently in
 

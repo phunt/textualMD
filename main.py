@@ -70,15 +70,20 @@ class MarkdownViewerApp(App):
     def on_mount(self) -> None:
         """Initialize the view state when the app mounts."""
         self.update_view()
-        # Set the app title which appears in the header
+        self.update_header_title()
+
+    def update_header_title(self) -> None:
+        """Update the header title with filename and current mode."""
+        mode = "Raw" if self.show_raw else "Rendered"
         if self.markdown_path:
-            self.title = f"Markdown Viewer - {self.markdown_path.name}"
+            self.title = f"Markdown Viewer - {self.markdown_path.name} [{mode}]"
         else:
-            self.title = "Markdown Viewer - No file loaded"
+            self.title = f"Markdown Viewer - No file loaded [{mode}]"
 
     def watch_show_raw(self, show_raw: bool) -> None:
         """React to changes in the show_raw state."""
         self.update_view()
+        self.update_header_title()
 
     def update_view(self) -> None:
         """Update which view is displayed based on show_raw state."""
