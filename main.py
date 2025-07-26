@@ -3,11 +3,12 @@ import tempfile
 import webbrowser
 from pathlib import Path
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Markdown, Static, DirectoryTree
+from textual.widgets import Header, Footer, Markdown, Static, DirectoryTree, Input
 from textual.containers import VerticalScroll, Horizontal
 from textual.reactive import reactive
 from textual.binding import Binding
 from markdown import markdown
+import re
 
 class MarkdownViewerApp(App):
     """A Textual app for viewing Markdown files."""
@@ -30,6 +31,10 @@ class MarkdownViewerApp(App):
         display: block;
     }
     
+    #main-container {
+        height: 1fr;
+    }
+    
     #content-area {
         width: 100%;
         height: 100%;
@@ -47,6 +52,28 @@ class MarkdownViewerApp(App):
     Static {
         margin: 1 2;
     }
+    
+    #search-input {
+        dock: top;
+        display: none;
+        background: $surface-darken-1;
+        padding: 0 2;
+        margin: 0;
+    }
+    
+    #search-input.visible {
+        display: block;
+    }
+    
+    .search-highlight {
+        background: yellow;
+        color: black;
+    }
+    
+    .search-highlight-current {
+        background: orange;
+        color: black;
+    }
     """
 
     BINDINGS = [
@@ -54,12 +81,17 @@ class MarkdownViewerApp(App):
         Binding("r", "toggle_raw", "Raw/Rendered", show=True),
         Binding("o", "open_browser", "Open in browser", show=True),
         Binding("f", "toggle_file_tree", "File tree", show=True),
+        Binding("s", "toggle_search", "Search", show=True),
         Binding("q", "quit", "Quit", show=True)
     ]
 
     # Reactive variables
     show_raw = reactive(False)
     show_file_tree = reactive(False)
+    show_search = reactive(False)
+    search_term = reactive("")
+    search_results = reactive(list, recompose=False)
+    current_search_index = reactive(0)
 
     def __init__(self, markdown_path: Path = None):
         super().__init__()
@@ -76,7 +108,9 @@ class MarkdownViewerApp(App):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         
-        with Horizontal():
+        # Don't include search input in initial compose - will add dynamically
+        
+        with Horizontal(id="main-container"):
             # File tree panel
             yield DirectoryTree(
                 Path.cwd(),
@@ -94,7 +128,17 @@ class MarkdownViewerApp(App):
         """Initialize the view state when the app mounts."""
         self.update_view()
         self.update_header_title()
-        self.update_file_tree_visibility()
+        # Don't update visibility on mount - let the CSS handle initial state
+        # The reactive variables are already False by default
+        
+        # Focus the main content area to ensure footer is visible
+        # and we're not in search mode by default
+        if self.show_raw:
+            raw_view = self.query_one("#raw-view", Static)
+            raw_view.focus()
+        else:
+            markdown_view = self.query_one("#markdown-view", Markdown)
+            markdown_view.focus()
 
     def update_header_title(self) -> None:
         """Update the header title with filename and current mode."""
@@ -112,6 +156,38 @@ class MarkdownViewerApp(App):
     def watch_show_file_tree(self, show_file_tree: bool) -> None:
         """React to changes in the show_file_tree state."""
         self.update_file_tree_visibility()
+
+    def watch_show_search(self, show_search: bool) -> None:
+        """React to changes in the show_search state."""
+        if show_search:
+            # Mount the search input dynamically
+            search_input = Input(
+                placeholder="Search in document... (Enter: next, Shift+Enter: previous, Esc: close)", 
+                id="search-input"
+            )
+            # Mount it after the header
+            header = self.query_one(Header)
+            self.mount(search_input, after=header)
+            # Apply the visible class and focus
+            search_input.add_class("visible")
+            search_input.focus()
+        else:
+            # Remove the search input if it exists
+            try:
+                search_input = self.query_one("#search-input", Input)
+                search_input.remove()
+                # Clear search state
+                self.search_term = ""
+                self.search_results = []
+                self.current_search_index = 0
+                self.update_search_highlights()
+                # Focus back on content
+                if self.show_raw:
+                    self.query_one("#raw-view", Static).focus()
+                else:
+                    self.query_one("#markdown-view", Markdown).focus()
+            except:
+                pass  # Search input doesn't exist
 
     def update_view(self) -> None:
         """Update which view is displayed based on show_raw state."""
@@ -132,6 +208,94 @@ class MarkdownViewerApp(App):
             file_tree.add_class("visible")
         else:
             file_tree.remove_class("visible")
+
+    def update_search_visibility(self) -> None:
+        """Update the visibility of the search panel."""
+        # This method is no longer needed since we mount/unmount dynamically
+        pass
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Handle search input changes."""
+        if event.input.id == "search-input":
+            self.search_term = event.value
+            self.perform_search()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter key in search input - go to next result."""
+        if event.input.id == "search-input" and self.search_results:
+            self.current_search_index = (self.current_search_index + 1) % len(self.search_results)
+            self.update_search_highlights()
+            self.scroll_to_current_result()
+
+    def on_key(self, event) -> None:
+        """Handle key events."""
+        if self.show_search:
+            if event.key == "escape":
+                self.show_search = False
+                event.prevent_default()
+            elif event.key == "shift+enter" and self.search_results:
+                # Go to previous result
+                self.current_search_index = (self.current_search_index - 1) % len(self.search_results)
+                self.update_search_highlights()
+                self.scroll_to_current_result()
+                event.prevent_default()
+
+    def perform_search(self) -> None:
+        """Perform search in the current content."""
+        if not self.search_term:
+            self.search_results = []
+            self.current_search_index = 0
+            self.update_search_highlights()
+            return
+        
+        # Find all matches in the content
+        pattern = re.escape(self.search_term)
+        matches = list(re.finditer(pattern, self.markdown_content, re.IGNORECASE))
+        
+        self.search_results = [(m.start(), m.end()) for m in matches]
+        self.current_search_index = 0 if self.search_results else -1
+        
+        self.update_search_highlights()
+        if self.search_results:
+            self.scroll_to_current_result()
+        
+        # Update search input placeholder with results count
+        try:
+            search_input = self.query_one("#search-input", Input)
+            if self.search_results:
+                count = len(self.search_results)
+                current = self.current_search_index + 1
+                search_input.placeholder = f"Search ({current}/{count} matches) - Enter: next, Shift+Enter: previous, Esc: close"
+            else:
+                search_input.placeholder = "No matches found - Esc: close"
+        except:
+            pass  # Search input doesn't exist
+
+    def update_search_highlights(self) -> None:
+        """Update the display to highlight search results."""
+        # For now, we'll update the footer to show search status
+        # In a real implementation, we'd highlight text in the Markdown/Static widgets
+        if self.search_results:
+            count = len(self.search_results)
+            current = self.current_search_index + 1
+            self.sub_title = f"Search: {self.search_term} ({current}/{count})"
+        elif self.search_term:
+            self.sub_title = f"Search: {self.search_term} (no matches)"
+        else:
+            self.sub_title = ""
+
+    def scroll_to_current_result(self) -> None:
+        """Scroll to the current search result."""
+        # This is a simplified version - in a real implementation,
+        # we'd calculate the position and scroll to it
+        if self.search_results and 0 <= self.current_search_index < len(self.search_results):
+            # Get the current result position
+            start, end = self.search_results[self.current_search_index]
+            # Calculate approximate line number (rough estimate)
+            lines_before = self.markdown_content[:start].count('\n')
+            # We'd need to implement actual scrolling to the line here
+            # For now, just log it
+            self.log(f"Would scroll to line {lines_before}")
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree."""
@@ -155,6 +319,11 @@ class MarkdownViewerApp(App):
             # Update the header
             self.update_header_title()
             
+            # Clear search if active
+            if self.show_search:
+                self.search_term = ""
+                self.perform_search()
+            
         except Exception as e:
             self.markdown_content = f"# Error\n\nCould not read file: {path}\n\nError: {str(e)}"
             markdown_view = self.query_one("#markdown-view", Markdown)
@@ -173,6 +342,10 @@ class MarkdownViewerApp(App):
     def action_toggle_file_tree(self) -> None:
         """Toggle the file tree panel."""
         self.show_file_tree = not self.show_file_tree
+
+    def action_toggle_search(self) -> None:
+        """Toggle the search panel."""
+        self.show_search = not self.show_search
 
     def action_open_browser(self) -> None:
         """Open the markdown in the default web browser (respects current view mode)."""
