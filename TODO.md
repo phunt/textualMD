@@ -8,6 +8,8 @@
 * [x] implement search functionality within the markdown content (s key)
 * [x] add table of contents panel showing document outline (toggle with "t" key)
 * [x] support watching file for changes and auto-reload
+* [] add support for markdown extensions - mermaid diagrams
+* [] add support for markdown extensions - math equations
 * [] add export functionality (PDF, HTML, DOCX) via "e" key
 * [] implement zoom in/out for text size (Ctrl+Plus/Minus)
 * [] add support for multiple file tabs
@@ -15,7 +17,6 @@
 * [] add support for following links in markdown (open links with Enter key)
 * [] add word count and reading time statistics in footer
 * [] implement print preview and printing support
-* [] add support for markdown extensions (mermaid diagrams, math equations)
 * [] implement find and replace functionality (Ctrl+H)
 * [] add recent files history (show on startup when no file provided)
 * [] support drag and drop to open files
