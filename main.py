@@ -1,6 +1,8 @@
 import sys
 import tempfile
 import webbrowser
+import threading
+import time
 from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Markdown, Static, DirectoryTree, Input, Tree
@@ -125,14 +127,19 @@ class MarkdownViewerApp(App):
     search_term = reactive("")
     search_results = reactive(list, recompose=False)
     current_search_index = reactive(0)
+    file_watch_enabled = reactive(True)
 
     def __init__(self, markdown_path: Path = None):
         super().__init__()
         self.markdown_path = markdown_path
         self.markdown_content = ""
+        self.file_watcher_thread = None
+        self.file_last_modified = None
+        self.watching = False
         
         if self.markdown_path and self.markdown_path.exists():
             self.markdown_content = self.markdown_path.read_text()
+            self.file_last_modified = self.markdown_path.stat().st_mtime
         elif self.markdown_path:
             self.markdown_content = f"# Error\n\nFile not found: {self.markdown_path}"
         else:
@@ -169,6 +176,10 @@ class MarkdownViewerApp(App):
         # Don't update visibility on mount - let the CSS handle initial state
         # The reactive variables are already False by default
         
+        # Start file watching if we have a file
+        if self.markdown_path and self.markdown_path.exists():
+            self.start_file_watching()
+        
         # Focus the main content area to ensure footer is visible
         # and we're not in search mode by default
         if self.show_raw:
@@ -177,6 +188,85 @@ class MarkdownViewerApp(App):
         else:
             markdown_view = self.query_one("#markdown-view", Markdown)
             markdown_view.focus()
+
+    def on_unmount(self) -> None:
+        """Clean up when the app exits."""
+        self.stop_file_watching()
+
+    def start_file_watching(self) -> None:
+        """Start watching the current file for changes."""
+        if not self.markdown_path or not self.markdown_path.exists():
+            return
+        
+        if self.file_watcher_thread and self.file_watcher_thread.is_alive():
+            self.stop_file_watching()
+        
+        self.watching = True
+        self.file_watcher_thread = threading.Thread(target=self._watch_file, daemon=True)
+        self.file_watcher_thread.start()
+
+    def stop_file_watching(self) -> None:
+        """Stop watching the current file."""
+        self.watching = False
+        if self.file_watcher_thread:
+            self.file_watcher_thread.join(timeout=1)
+
+    def _watch_file(self) -> None:
+        """Background thread to watch for file changes."""
+        while self.watching and self.file_watch_enabled:
+            try:
+                if self.markdown_path and self.markdown_path.exists():
+                    current_mtime = self.markdown_path.stat().st_mtime
+                    if self.file_last_modified and current_mtime > self.file_last_modified:
+                        self.file_last_modified = current_mtime
+                        # Use call_from_thread to safely update UI from background thread
+                        self.call_from_thread(self.reload_file)
+                time.sleep(1)  # Check every second
+            except Exception as e:
+                self.log(f"File watching error: {e}")
+                break
+
+    def reload_file(self) -> None:
+        """Reload the current file and update the display."""
+        if not self.markdown_path or not self.markdown_path.exists():
+            return
+        
+        try:
+            # Save current scroll position
+            scroll_container = self.query_one("#content-area", VerticalScroll)
+            scroll_y = scroll_container.scroll_y
+            
+            # Read the new content
+            new_content = self.markdown_path.read_text()
+            
+            # Only update if content actually changed
+            if new_content != self.markdown_content:
+                self.markdown_content = new_content
+                
+                # Update both views
+                markdown_view = self.query_one("#markdown-view", Markdown)
+                raw_view = self.query_one("#raw-view", Static)
+                
+                if self.search_term:
+                    # Re-run search if active
+                    self.perform_search()
+                else:
+                    markdown_view.update(self.markdown_content)
+                    raw_view.update(self.markdown_content)
+                
+                # Rebuild table of contents
+                self.build_table_of_contents()
+                
+                # Restore scroll position
+                scroll_container.scroll_to(y=scroll_y, animate=False)
+                
+                # Show notification in subtitle
+                self.sub_title = "File reloaded (auto)"
+                # Clear notification after 2 seconds
+                self.set_timer(2.0, lambda: setattr(self, 'sub_title', ''))
+                
+        except Exception as e:
+            self.log(f"Error reloading file: {e}")
 
     def parse_markdown_headers(self) -> list:
         """Parse markdown content to extract headers."""
@@ -232,8 +322,9 @@ class MarkdownViewerApp(App):
     def update_header_title(self) -> None:
         """Update the header title with filename and current mode."""
         mode = "Raw" if self.show_raw else "Rendered"
+        watch_status = "👁" if self.file_watch_enabled and self.watching else ""
         if self.markdown_path:
-            self.title = f"Markdown Viewer - {self.markdown_path.name} [{mode}]"
+            self.title = f"Markdown Viewer - {self.markdown_path.name} [{mode}] {watch_status}"
         else:
             self.title = f"Markdown Viewer - No file loaded [{mode}]"
 
@@ -517,8 +608,12 @@ class MarkdownViewerApp(App):
     def load_markdown_file(self, path: Path) -> None:
         """Load a markdown file and update the display."""
         try:
+            # Stop watching the old file
+            self.stop_file_watching()
+            
             self.markdown_path = path
             self.markdown_content = path.read_text()
+            self.file_last_modified = path.stat().st_mtime
             
             # Update both views with new content
             markdown_view = self.query_one("#markdown-view", Markdown)
@@ -532,6 +627,9 @@ class MarkdownViewerApp(App):
             
             # Rebuild table of contents
             self.build_table_of_contents()
+            
+            # Start watching the new file
+            self.start_file_watching()
             
             # Clear search if active
             if self.show_search:

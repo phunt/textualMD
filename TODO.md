@@ -7,7 +7,7 @@
 * [x] add file tree/explorer panel to browse and open markdown files (toggle with "f" key)
 * [x] implement search functionality within the markdown content (s key)
 * [x] add table of contents panel showing document outline (toggle with "t" key)
-* [] support watching file for changes and auto-reload
+* [x] support watching file for changes and auto-reload
 * [] add export functionality (PDF, HTML, DOCX) via "e" key
 * [] implement zoom in/out for text size (Ctrl+Plus/Minus)
 * [] add support for multiple file tabs
