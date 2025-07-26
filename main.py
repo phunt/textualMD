@@ -20,27 +20,24 @@ class MarkdownViewerApp(App):
     CSS = """
     Screen {
         background: $surface;
-        color: $text;
     }
     
-    DirectoryTree {
-        width: 30;
-        height: 100%;
-        dock: left;
+    #file-tree {
         display: none;
-        border-right: solid $primary;
+        width: 30;
+        dock: left;
+        overflow-y: auto;
     }
     
-    DirectoryTree.visible {
+    #file-tree.visible {
         display: block;
     }
     
     #toc-panel {
-        width: 35;
-        height: 100%;
-        dock: right;
         display: none;
-        border-left: solid $primary;
+        width: 30;
+        dock: right;
+        overflow-y: auto;
         padding: 1;
     }
     
@@ -48,18 +45,33 @@ class MarkdownViewerApp(App):
         display: block;
     }
     
-    #toc-tree {
-        width: 100%;
-        height: 100%;
+    Tree {
+        padding: 1;
+    }
+    
+    #content-area {
+        overflow-y: auto;
     }
     
     #main-container {
         height: 1fr;
     }
     
-    #content-area {
-        width: 100%;
-        height: 100%;
+    #raw-view {
+        display: none;
+        padding: 1 2;
+    }
+    
+    #raw-view.visible {
+        display: block;
+    }
+    
+    #markdown-view {
+        display: block;
+    }
+    
+    #markdown-view.hidden {
+        display: none;
     }
     
     VerticalScroll {
@@ -70,6 +82,8 @@ class MarkdownViewerApp(App):
     Markdown {
         margin: 1 2;
     }
+    
+
     
     Markdown .search-match {
         background: yellow;
@@ -261,7 +275,9 @@ class MarkdownViewerApp(App):
                     processed_content = self.process_markdown_with_mermaid()
                     markdown_view.update(processed_content)
                 else:
-                    markdown_view.update(self.markdown_content)
+                    # Still apply bullet list fix even in raw mode for the markdown view
+                    fixed_content = self.fix_bullet_lists(self.markdown_content)
+                    markdown_view.update(fixed_content)
                 
                 raw_view.update(self.markdown_content)
                 
@@ -313,7 +329,7 @@ class MarkdownViewerApp(App):
         self.mermaid_blocks = self.detect_mermaid_blocks()
         
         if not self.mermaid_blocks:
-            return self.markdown_content
+            return self.fix_bullet_lists(self.markdown_content)
         
         # Create a copy of the content with Mermaid placeholders
         lines = self.markdown_content.split('\n')
@@ -350,7 +366,27 @@ class MarkdownViewerApp(App):
         # Add remaining lines
         processed_lines.extend(lines[current_line:])
         
-        return '\n'.join(processed_lines)
+        result = '\n'.join(processed_lines)
+        return self.fix_bullet_lists(result)
+
+    def fix_bullet_lists(self, content: str) -> str:
+        """Placeholder for bullet list rendering fix.
+        
+        NOTE: There is a known issue with Textual's Markdown widget (v5.0.1) where
+        bullet points and their text are rendered on separate lines. This is a 
+        limitation of the widget itself and cannot be fixed with text preprocessing
+        or CSS alone.
+        
+        Previous attempts that didn't work:
+        1. Adding zero-width spaces after bullets
+        2. Using non-breaking spaces  
+        3. Replacing bullet characters with unicode bullets
+        4. CSS modifications to markdown--list-item elements
+        
+        This will likely be fixed in a future version of Textual.
+        For now, we return the content unchanged.
+        """
+        return content
 
     def parse_markdown_headers(self) -> list:
         """Parse markdown content to extract headers."""
@@ -456,7 +492,8 @@ class MarkdownViewerApp(App):
                 # Reset both views to original content
                 markdown_view = self.query_one("#markdown-view", Markdown)
                 raw_view = self.query_one("#raw-view", Static)
-                markdown_view.update(self.markdown_content)
+                fixed_content = self.fix_bullet_lists(self.markdown_content)
+                markdown_view.update(fixed_content)
                 raw_view.update(self.markdown_content)
                 
                 # Focus back on content
@@ -592,7 +629,9 @@ class MarkdownViewerApp(App):
         markdown_view = self.query_one("#markdown-view", Markdown)
         
         if not self.search_results:
-            markdown_view.update(self.markdown_content)
+            # Apply bullet list fix even when no search results
+            fixed_content = self.fix_bullet_lists(self.markdown_content)
+            markdown_view.update(fixed_content)
             return
         
         # Create highlighted content using unicode markers
@@ -614,8 +653,11 @@ class MarkdownViewerApp(App):
             
             highlighted_content = highlighted_content[:start] + replacement + highlighted_content[end:]
         
+        # Apply bullet list fix to highlighted content
+        fixed_content = self.fix_bullet_lists(highlighted_content)
+        
         # Update the markdown view with highlighted content
-        markdown_view.update(highlighted_content)
+        markdown_view.update(fixed_content)
 
     def update_raw_view_with_highlights(self) -> None:
         """Update the raw view with search highlights."""
@@ -711,7 +753,8 @@ class MarkdownViewerApp(App):
                 processed_content = self.process_markdown_with_mermaid()
                 markdown_view.update(processed_content)
             else:
-                markdown_view.update(self.markdown_content)
+                fixed_content = self.fix_bullet_lists(self.markdown_content)
+                markdown_view.update(fixed_content)
             
             raw_view.update(self.markdown_content)
             
@@ -735,7 +778,8 @@ class MarkdownViewerApp(App):
             self.markdown_content = f"# Error\n\nCould not read file: {path}\n\nError: {str(e)}"
             markdown_view = self.query_one("#markdown-view", Markdown)
             raw_view = self.query_one("#raw-view", Static)
-            markdown_view.update(self.markdown_content)
+            fixed_content = self.fix_bullet_lists(self.markdown_content)
+            markdown_view.update(fixed_content)
             raw_view.update(self.markdown_content)
 
     def action_toggle_dark(self) -> None:
