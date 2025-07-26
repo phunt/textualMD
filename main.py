@@ -8,6 +8,8 @@ from textual.containers import VerticalScroll, Horizontal
 from textual.reactive import reactive
 from textual.binding import Binding
 from markdown import markdown
+from rich.text import Text
+from rich.syntax import Syntax
 import re
 
 class MarkdownViewerApp(App):
@@ -47,6 +49,17 @@ class MarkdownViewerApp(App):
     
     Markdown {
         margin: 1 2;
+    }
+    
+    Markdown .search-match {
+        background: yellow;
+        color: black;
+    }
+    
+    Markdown .search-match-current {
+        background: #ff6600;
+        color: white;
+        text-style: bold;
     }
     
     Static {
@@ -152,6 +165,9 @@ class MarkdownViewerApp(App):
         """React to changes in the show_raw state."""
         self.update_view()
         self.update_header_title()
+        # Update search highlights if search is active
+        if self.search_term:
+            self.update_search_highlights()
 
     def watch_show_file_tree(self, show_file_tree: bool) -> None:
         """React to changes in the show_file_tree state."""
@@ -181,11 +197,18 @@ class MarkdownViewerApp(App):
                 self.search_results = []
                 self.current_search_index = 0
                 self.update_search_highlights()
+                
+                # Reset both views to original content
+                markdown_view = self.query_one("#markdown-view", Markdown)
+                raw_view = self.query_one("#raw-view", Static)
+                markdown_view.update(self.markdown_content)
+                raw_view.update(self.markdown_content)
+                
                 # Focus back on content
                 if self.show_raw:
-                    self.query_one("#raw-view", Static).focus()
+                    raw_view.focus()
                 else:
-                    self.query_one("#markdown-view", Markdown).focus()
+                    markdown_view.focus()
             except:
                 pass  # Search input doesn't exist
 
@@ -273,8 +296,7 @@ class MarkdownViewerApp(App):
 
     def update_search_highlights(self) -> None:
         """Update the display to highlight search results."""
-        # For now, we'll update the footer to show search status
-        # In a real implementation, we'd highlight text in the Markdown/Static widgets
+        # Update the subtitle to show search status
         if self.search_results:
             count = len(self.search_results)
             current = self.current_search_index + 1
@@ -283,19 +305,103 @@ class MarkdownViewerApp(App):
             self.sub_title = f"Search: {self.search_term} (no matches)"
         else:
             self.sub_title = ""
+        
+        # Update the content display with highlights
+        if self.search_term or self.search_results:
+            if self.show_raw:
+                self.update_raw_view_with_highlights()
+            else:
+                self.update_markdown_view_with_highlights()
+        else:
+            # Reset to plain content if no search
+            if self.show_raw:
+                raw_view = self.query_one("#raw-view", Static)
+                raw_view.update(self.markdown_content)
+            else:
+                markdown_view = self.query_one("#markdown-view", Markdown)
+                markdown_view.update(self.markdown_content)
+
+    def update_markdown_view_with_highlights(self) -> None:
+        """Update the markdown view with search highlights."""
+        markdown_view = self.query_one("#markdown-view", Markdown)
+        
+        if not self.search_results:
+            markdown_view.update(self.markdown_content)
+            return
+        
+        # Create highlighted content using unicode markers
+        highlighted_content = self.markdown_content
+        
+        # Sort results by position in reverse order to avoid offset issues
+        sorted_results = sorted(enumerate(self.search_results), key=lambda x: x[1][0], reverse=True)
+        
+        # Apply visual highlighting with unicode characters
+        for i, (start, end) in sorted_results:
+            match_text = highlighted_content[start:end]
+            
+            if i == self.current_search_index:
+                # Current match - use distinctive markers
+                replacement = f'【{match_text}】'
+            else:
+                # Other matches - use lighter markers
+                replacement = f'〖{match_text}〗'
+            
+            highlighted_content = highlighted_content[:start] + replacement + highlighted_content[end:]
+        
+        # Update the markdown view with highlighted content
+        markdown_view.update(highlighted_content)
+
+    def update_raw_view_with_highlights(self) -> None:
+        """Update the raw view with search highlights."""
+        raw_view = self.query_one("#raw-view", Static)
+        
+        if not self.search_results:
+            raw_view.update(self.markdown_content)
+            return
+        
+        # Create a Rich Text object with the content
+        text = Text(self.markdown_content)
+        
+        # Apply highlighting to all matches
+        for i, (start, end) in enumerate(self.search_results):
+            if i == self.current_search_index:
+                # Current match - use orange background
+                text.stylize("bold yellow on dark_orange", start, end)
+            else:
+                # Other matches - use yellow background
+                text.stylize("black on yellow", start, end)
+        
+        # Update the raw view with the highlighted text
+        raw_view.update(text)
 
     def scroll_to_current_result(self) -> None:
         """Scroll to the current search result."""
-        # This is a simplified version - in a real implementation,
-        # we'd calculate the position and scroll to it
         if self.search_results and 0 <= self.current_search_index < len(self.search_results):
             # Get the current result position
             start, end = self.search_results[self.current_search_index]
-            # Calculate approximate line number (rough estimate)
+            
+            # Calculate line number
             lines_before = self.markdown_content[:start].count('\n')
-            # We'd need to implement actual scrolling to the line here
-            # For now, just log it
-            self.log(f"Would scroll to line {lines_before}")
+            
+            # Get the appropriate view widget
+            if self.show_raw:
+                view_widget = self.query_one("#raw-view", Static)
+            else:
+                view_widget = self.query_one("#markdown-view", Markdown)
+            
+            # Get the scrollable container
+            scroll_container = self.query_one("#content-area", VerticalScroll)
+            
+            # Calculate approximate scroll position
+            # This is a rough estimate - each line is approximately 1 unit high
+            try:
+                # Scroll to put the match in the middle of the view
+                viewport_height = scroll_container.size.height
+                target_y = max(0, lines_before - viewport_height // 2)
+                scroll_container.scroll_to(y=target_y, animate=False)
+            except:
+                # If scrolling fails, just log it
+                self.log(f"Would scroll to line {lines_before}")
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Handle file selection from the directory tree."""
@@ -322,6 +428,8 @@ class MarkdownViewerApp(App):
             # Clear search if active
             if self.show_search:
                 self.search_term = ""
+                self.search_results = []
+                self.current_search_index = 0
                 self.perform_search()
             
         except Exception as e:
