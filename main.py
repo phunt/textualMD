@@ -116,6 +116,7 @@ class MarkdownViewerApp(App):
         Binding("f", "toggle_file_tree", "File tree", show=True),
         Binding("t", "toggle_toc", "Table of contents", show=True),
         Binding("s", "toggle_search", "Search", show=True),
+        Binding("e", "export_file", "Export", show=True),
         Binding("q", "quit", "Quit", show=True)
     ]
 
@@ -137,6 +138,7 @@ class MarkdownViewerApp(App):
         self.file_last_modified = None
         self.watching = False
         self.mermaid_blocks = []  # Store mermaid diagram locations
+        self._export_html_path = None  # Store export path for opening
         
         if self.markdown_path and self.markdown_path.exists():
             self.markdown_content = self.markdown_path.read_text()
@@ -756,8 +758,191 @@ class MarkdownViewerApp(App):
         """Toggle the search panel."""
         self.show_search = not self.show_search
 
+    def action_export_file(self) -> None:
+        """Export the markdown file to different formats."""
+        if not self.markdown_content:
+            self.sub_title = "No content to export"
+            return
+        
+        # Create exports directory if it doesn't exist
+        export_dir = Path("exports")
+        export_dir.mkdir(exist_ok=True)
+        
+        # Base filename for exports
+        base_name = self.markdown_path.stem if self.markdown_path else "markdown_export"
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        
+        # Export as HTML (always possible)
+        html_path = export_dir / f"{base_name}_{timestamp}.html"
+        self.export_as_html(html_path)
+        
+        # Export as plain text
+        txt_path = export_dir / f"{base_name}_{timestamp}.txt"
+        self.export_as_text(txt_path)
+        
+        # Show export dialog with instructions
+        self.show_export_dialog(html_path, txt_path)
+    
+    def export_as_html(self, output_path: Path) -> None:
+        """Export markdown as HTML file."""
+        # Use the same HTML generation as browser view
+        html_content = self.convert_markdown_with_mermaid()
+        
+        html_document = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>{self.markdown_path.name if self.markdown_path else 'Markdown Export'}</title>
+            <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+            <script>
+                mermaid.initialize({{ startOnLoad: true, theme: 'default' }});
+            </script>
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: white;
+                }}
+                pre {{
+                    background-color: #f0f0f0;
+                    padding: 10px;
+                    border-radius: 5px;
+                    overflow-x: auto;
+                }}
+                code {{
+                    background-color: #f0f0f0;
+                    padding: 2px 4px;
+                    border-radius: 3px;
+                    font-family: 'Courier New', Courier, monospace;
+                }}
+                blockquote {{
+                    border-left: 4px solid #ddd;
+                    margin: 0;
+                    padding-left: 20px;
+                    color: #666;
+                }}
+                h1, h2, h3, h4, h5, h6 {{
+                    color: #111;
+                    margin-top: 24px;
+                    margin-bottom: 16px;
+                }}
+                a {{
+                    color: #0066cc;
+                    text-decoration: none;
+                }}
+                a:hover {{
+                    text-decoration: underline;
+                }}
+                .mermaid {{
+                    text-align: center;
+                    margin: 20px 0;
+                }}
+                @media print {{
+                    body {{
+                        background-color: white;
+                        margin: 0;
+                        padding: 10mm;
+                    }}
+                }}
+            </style>
+        </head>
+        <body>
+            {html_content}
+        </body>
+        </html>
+        """
+        
+        output_path.write_text(html_document)
+    
+    def export_as_text(self, output_path: Path) -> None:
+        """Export markdown as plain text file."""
+        output_path.write_text(self.markdown_content)
+    
+    def show_export_dialog(self, html_path: Path, txt_path: Path) -> None:
+        """Show export completion dialog with instructions."""
+        # Create a temporary dialog content
+        dialog_content = f"""# Export Complete! 
+
+Files have been exported to the 'exports' directory:
+
+## Exported Files:
+- **HTML**: `{html_path.name}`
+- **Text**: `{txt_path.name}`
+
+## To Create PDF:
+1. Open the HTML file in your browser
+2. Press Ctrl/Cmd + P to print
+3. Select "Save as PDF" as the printer
+4. Click Save
+
+## To Create DOCX:
+1. Open the HTML file in your browser
+2. Select all content (Ctrl/Cmd + A)
+3. Copy (Ctrl/Cmd + C)
+4. Paste into Microsoft Word or Google Docs
+5. Save as DOCX
+
+Press 'o' to open the HTML file in your browser now!
+"""
+        
+        # Temporarily store the current content and path
+        original_content = self.markdown_content
+        original_path = self.markdown_path
+        
+        # Display the dialog
+        self.markdown_content = dialog_content
+        self.markdown_path = None
+        
+        # Update views
+        markdown_view = self.query_one("#markdown-view", Markdown)
+        raw_view = self.query_one("#raw-view", Static)
+        markdown_view.update(dialog_content)
+        raw_view.update(dialog_content)
+        
+        # Update header
+        self.title = "Export Complete"
+        
+        # Store the HTML path for opening
+        self._export_html_path = html_path
+        
+        # Set a timer to restore original content after 10 seconds
+        self.set_timer(10.0, lambda: self._restore_after_export(original_content, original_path))
+    
+    def _restore_after_export(self, original_content: str, original_path: Path) -> None:
+        """Restore original content after showing export dialog."""
+        self.markdown_content = original_content
+        self.markdown_path = original_path
+        
+        # Update views
+        markdown_view = self.query_one("#markdown-view", Markdown)
+        raw_view = self.query_one("#raw-view", Static)
+        
+        if self.show_raw:
+            raw_view.update(self.markdown_content)
+        else:
+            processed_content = self.process_markdown_with_mermaid()
+            markdown_view.update(processed_content)
+        
+        raw_view.update(self.markdown_content)
+        
+        # Update header
+        self.update_header_title()
+        
+        # Clear the export path
+        self._export_html_path = None
+
     def action_open_browser(self) -> None:
         """Open the markdown in the default web browser (respects current view mode)."""
+        # Check if we should open an exported file
+        if hasattr(self, '_export_html_path') and self._export_html_path:
+            webbrowser.open(f'file://{self._export_html_path.absolute()}')
+            return
+        
         if self.show_raw:
             # Show raw markdown as plain text
             html_document = f"""

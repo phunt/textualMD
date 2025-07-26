@@ -9,8 +9,8 @@
 * [x] add table of contents panel showing document outline (toggle with "t" key)
 * [x] support watching file for changes and auto-reload
 * [x] add support for markdown extensions - mermaid diagrams
+* [x] add export functionality (PDF, HTML, DOCX) via "e" key
 * [] add support for markdown extensions - math equations
-* [] add export functionality (PDF, HTML, DOCX) via "e" key
 * [] implement zoom in/out for text size (Ctrl+Plus/Minus)
 * [] add support for multiple file tabs
 * [] implement copy to clipboard for selected text or entire document
