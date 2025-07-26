@@ -55,7 +55,13 @@ class MarkdownViewerApp(App):
             self.markdown_content = "# Welcome to Markdown Viewer\n\nPlease provide a markdown file as an argument:\n\n```\npython main.py <path_to_markdown_file>\n```"
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        # Create header with custom title
+        if self.markdown_path:
+            header_title = f"Markdown Viewer - {self.markdown_path.name}"
+        else:
+            header_title = "Markdown Viewer - No file loaded"
+        
+        yield Header(show_clock=True)
         with VerticalScroll(id="content-container"):
             yield Markdown(self.markdown_content, id="markdown-view")
             yield Static(self.markdown_content, id="raw-view")
@@ -64,6 +70,11 @@ class MarkdownViewerApp(App):
     def on_mount(self) -> None:
         """Initialize the view state when the app mounts."""
         self.update_view()
+        # Set the app title which appears in the header
+        if self.markdown_path:
+            self.title = f"Markdown Viewer - {self.markdown_path.name}"
+        else:
+            self.title = "Markdown Viewer - No file loaded"
 
     def watch_show_raw(self, show_raw: bool) -> None:
         """React to changes in the show_raw state."""
