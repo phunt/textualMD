@@ -62,7 +62,7 @@ class MarkdownProcessor:
         self.detect_mermaid_blocks(content)
         
         if not self.mermaid_blocks:
-            return self.fix_bullet_lists(content)
+            return content
         
         lines = content.split('\n')
         processed_lines = []
@@ -99,24 +99,7 @@ class MarkdownProcessor:
         processed_lines.extend(lines[current_line:])
         
         result = '\n'.join(processed_lines)
-        return self.fix_bullet_lists(result)
-    
-    def fix_bullet_lists(self, content: str) -> str:
-        """
-        Placeholder for bullet list rendering fix.
-        
-        NOTE: There is a known issue with Textual's Markdown widget (v5.0.1) where
-        bullet points and their text are rendered on separate lines. This is a 
-        limitation of the widget itself and cannot be fixed with text preprocessing
-        or CSS alone.
-        
-        Args:
-            content: The markdown content
-            
-        Returns:
-            The content unchanged
-        """
-        return content
+        return result
     
     def parse_headers(self, content: str) -> HeaderList:
         """

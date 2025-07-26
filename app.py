@@ -347,8 +347,7 @@ class MarkdownViewerApp(App):
             processed_content = self.markdown_processor.process_with_mermaid(self.markdown_content)
             markdown_view.update(processed_content)
         else:
-            fixed_content = self.markdown_processor.fix_bullet_lists(self.markdown_content)
-            markdown_view.update(fixed_content)
+            markdown_view.update(self.markdown_content)
         
         raw_view.update(Text(escape(self.markdown_content)))
 
@@ -466,8 +465,7 @@ class MarkdownViewerApp(App):
         markdown_view = self.query_one("#markdown-view", Markdown)
         
         if not self.search_engine.search_results:
-            fixed_content = self.markdown_processor.fix_bullet_lists(self.markdown_content)
-            markdown_view.update(fixed_content)
+            markdown_view.update(self.markdown_content)
             return
         
         highlighted_content = self.ui_helper.create_highlighted_markdown(
@@ -476,8 +474,7 @@ class MarkdownViewerApp(App):
             self.search_engine.current_index
         )
         
-        fixed_content = self.markdown_processor.fix_bullet_lists(highlighted_content)
-        markdown_view.update(fixed_content)
+        markdown_view.update(highlighted_content)
 
     def _update_search_placeholder(self) -> None:
         """Update the search input placeholder with results information."""
