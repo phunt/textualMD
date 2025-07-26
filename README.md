@@ -25,38 +25,67 @@ Note: this was all generated using Cursor as a test case for new project creatio
 
 ## Installation
 
-### Requirements
-- Python 3.8 or higher
-- pip (Python package manager)
+### Quick Install (Recommended)
 
-### Install Dependencies
+TextualMD can be installed globally using [uv](https://github.com/astral-sh/uv), a fast Python package manager:
+
+```bash
+# Install uv first (if you haven't already)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install TextualMD globally
+uv tool install git+https://github.com/phunt/textualMD
+
+# Or install from local directory
+git clone <repository-url>
+cd textualMD
+uv tool install .
+```
+
+This installs two commands: `textualmd` and `tmd` (shorter alias).
+
+### Alternative: Development Installation
+
+For development or if you prefer using pip:
 
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd textualMD
 
-# Install required packages
-pip install -r requirements.txt
+# Create a virtual environment (using uv)
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install in development mode
+uv pip install -e .
+
+# Or use traditional pip
+pip install -e .
 ```
 
-The application requires only two dependencies:
-- `textual==5.0.1` - Terminal UI framework
-- `markdown==3.8.2` - Markdown to HTML conversion
+### Requirements
+- Python 3.13 or higher
+- No system dependencies required!
 
 ## Usage
 
 ### Basic Usage
 
+Once installed globally with uv:
+
 ```bash
 # Run without arguments to see the welcome screen
-python main.py
+tmd
 
 # Open a specific Markdown file
-python main.py README.md
+tmd README.md
 
 # Open any Markdown file
-python main.py path/to/your/file.md
+tmd ~/Documents/notes.md
+
+# Use the full command name
+textualmd path/to/your/file.md
 ```
 
 ### Keyboard Shortcuts
@@ -82,13 +111,13 @@ When in search mode:
 
 ### Viewing a README file
 ```bash
-python main.py README.md
+tmd README.md
 ```
 This opens the README in rendered mode. Press `r` to see the raw Markdown source.
 
 ### Exploring a Documentation Folder
 ```bash
-python main.py docs/
+tmd docs/
 ```
 Press `f` to open the file tree and browse through multiple Markdown files.
 
@@ -125,29 +154,73 @@ The export feature (`e` key) creates three formats simultaneously:
 
 All exports are saved in the `exports/` directory with timestamps.
 
-## Known Issues
+## Development
 
-- **Bullet List Rendering**: In Textual v5.0.1, bullet points may appear on separate lines from their text in the rendered view. This is a limitation of the current Markdown widget.
-
-## Project Structure
+### Project Structure
 
 ```
 textualMD/
-├── main.py              # Entry point
-├── app.py               # Main application logic
-├── constants.py         # Application constants
-├── requirements.txt     # Python dependencies
-├── services/            # Core services
-│   ├── file_manager.py      # File operations
-│   ├── file_watcher.py      # File monitoring
-│   ├── markdown_processor.py # Markdown processing
-│   ├── search_engine.py     # Search functionality
-│   └── export_manager.py    # Export features
-└── ui/                  # User interface
-    ├── widgets.py           # Custom widgets
-    ├── styles.py            # CSS styles
-    └── bindings.py          # Keyboard shortcuts
+├── pyproject.toml       # Project configuration and dependencies
+├── src/
+│   └── textualmd/       # Main package
+│       ├── __init__.py
+│       ├── main.py          # Entry point
+│       ├── app.py           # Main application logic
+│       ├── app_types.py     # Type definitions
+│       ├── constants.py     # Application constants
+│       ├── services/        # Core services
+│       │   ├── file_manager.py
+│       │   ├── file_watcher.py
+│       │   ├── markdown_processor.py
+│       │   ├── search_engine.py
+│       │   └── export_manager.py
+│       └── ui/              # User interface
+│           ├── widgets.py
+│           ├── styles.py
+│           └── bindings.py
+└── requirements.txt     # Legacy dependency file
 ```
+
+### Running from Source
+
+During development, you can run the application directly from the source:
+
+```bash
+# Using uv (recommended)
+uv run tmd README.md
+
+# Or if you have activated the virtual environment
+python -m textualmd README.md
+```
+
+### Adding Dependencies
+
+To add new dependencies:
+
+```bash
+# Add a new dependency
+uv add package-name
+
+# Add a development dependency
+uv add --dev pytest
+
+# Update the global installation
+uv tool install . --force
+```
+
+### Testing Changes
+
+For development, you might want to install in editable mode:
+
+```bash
+uv tool install . --force --editable
+```
+
+This way, changes to the source code are immediately reflected without reinstalling.
+
+## Known Issues
+
+- **Bullet List Rendering**: In Textual v5.0.1, bullet points may appear on separate lines from their text in the rendered view. This is a limitation of the current Markdown widget.
 
 ## Contributing
 

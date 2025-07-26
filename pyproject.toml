@@ -1,0 +1,38 @@
+[project]
+name = "textualmd"
+version = "0.1.0"
+description = "A powerful terminal-based Markdown viewer with syntax highlighting, TOC navigation, and Mermaid diagram support"
+readme = "README.md"
+authors = [
+    { name = "Patrick Hunt", email = "phunt1@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "textual>=5.0.1",
+    "markdown>=3.8.2",
+]
+keywords = ["markdown", "viewer", "terminal", "tui", "textual", "mermaid"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://github.com/phunt/textualMD"
+Repository = "https://github.com/phunt/textualMD"
+Issues = "https://github.com/phunt/textualMD/issues"
+
+[project.scripts]
+textualmd = "textualmd:main"
+tmd = "textualmd:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

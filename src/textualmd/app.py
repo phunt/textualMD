@@ -15,7 +15,7 @@ from textual.events import Key
 from rich.text import Text
 from rich.markup import escape
 
-from constants import (
+from .constants import (
     APP_NAME,
     DEFAULT_CONTENT,
     NOTIFICATION_DURATION,
@@ -23,8 +23,8 @@ from constants import (
     SEARCH_PLACEHOLDER,
     SEARCH_NO_MATCHES_PLACEHOLDER
 )
-from ui import APP_CSS, APP_BINDINGS, UIHelper
-from services import (
+from .ui import APP_CSS, APP_BINDINGS, UIHelper
+from .services import (
     FileManager,
     FileWatcher,
     MarkdownProcessor,

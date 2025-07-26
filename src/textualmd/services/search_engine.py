@@ -4,7 +4,7 @@ Service for handling search functionality within markdown documents.
 
 import re
 from typing import List, Tuple, Optional
-from app_types import SearchResults
+from ..app_types import SearchResults
 
 
 class SearchEngine:

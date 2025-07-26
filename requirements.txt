@@ -1,3 +1,8 @@
+# NOTE: This file is kept for legacy compatibility only.
+# TextualMD now uses pyproject.toml for dependency management.
+# To install dependencies, use: uv sync
+# To add new dependencies, use: uv add package-name
+
 # Minimal dependencies for Markdown Viewer
 textual==5.0.1    # TUI framework
 markdown==3.8.2   # Markdown to HTML conversion

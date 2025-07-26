@@ -3,6 +3,14 @@
 venv/
 ENV/
 
+# Python packaging
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+src/*.egg-info/
+
 # Exports directory
 exports/
 
@@ -10,6 +18,9 @@ exports/
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.coverage
+htmlcov/
 
 # IDE files
 .idea/

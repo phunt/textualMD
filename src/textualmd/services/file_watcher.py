@@ -6,7 +6,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Optional, Callable
-from constants import FILE_WATCH_INTERVAL, FILE_WATCH_JOIN_TIMEOUT
+from ..constants import FILE_WATCH_INTERVAL, FILE_WATCH_JOIN_TIMEOUT
 
 
 class FileWatcher:

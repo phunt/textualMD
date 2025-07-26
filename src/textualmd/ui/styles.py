@@ -2,7 +2,7 @@
 CSS styles for the Markdown Viewer application.
 """
 
-from constants import FILE_TREE_WIDTH, TOC_PANEL_WIDTH
+from ..constants import FILE_TREE_WIDTH, TOC_PANEL_WIDTH
 
 APP_CSS = f"""
 Screen {{

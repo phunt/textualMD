@@ -4,7 +4,7 @@ Service for handling file operations.
 
 from pathlib import Path
 from typing import Optional, Tuple
-from constants import MARKDOWN_EXTENSIONS, ERROR_CONTENT_TEMPLATE
+from ..constants import MARKDOWN_EXTENSIONS, ERROR_CONTENT_TEMPLATE
 
 
 class FileManager:

@@ -5,8 +5,8 @@ Service for processing markdown content.
 import re
 from typing import List, Optional
 from markdown import markdown
-from app_types import MermaidBlock, Header, MermaidBlockList, HeaderList
-from constants import MERMAID_PREVIEW_LINES, MERMAID_PREVIEW_MAX_LENGTH
+from ..app_types import MermaidBlock, Header, MermaidBlockList, HeaderList
+from ..constants import MERMAID_PREVIEW_LINES, MERMAID_PREVIEW_MAX_LENGTH
 
 
 class MarkdownProcessor:

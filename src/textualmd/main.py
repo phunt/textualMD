@@ -5,7 +5,7 @@ Entry point for the Markdown Viewer application.
 
 import sys
 from pathlib import Path
-from app import MarkdownViewerApp
+from .app import MarkdownViewerApp
 
 
 def main():

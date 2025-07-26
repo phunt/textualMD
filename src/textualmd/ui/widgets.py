@@ -6,7 +6,7 @@ from textual.widgets import Tree
 from typing import List, Optional
 from rich.text import Text
 from rich.markup import escape
-from app_types import HeaderList, SearchResults
+from ..app_types import HeaderList, SearchResults
 
 
 class UIHelper:
