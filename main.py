@@ -3,8 +3,8 @@ import tempfile
 import webbrowser
 from pathlib import Path
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Markdown, Static
-from textual.containers import VerticalScroll
+from textual.widgets import Header, Footer, Markdown, Static, DirectoryTree
+from textual.containers import VerticalScroll, Horizontal
 from textual.reactive import reactive
 from textual.binding import Binding
 from markdown import markdown
@@ -16,6 +16,23 @@ class MarkdownViewerApp(App):
     Screen {
         background: $surface;
         color: $text;
+    }
+    
+    DirectoryTree {
+        width: 30;
+        height: 100%;
+        dock: left;
+        display: none;
+        border-right: solid $primary;
+    }
+    
+    DirectoryTree.visible {
+        display: block;
+    }
+    
+    #content-area {
+        width: 100%;
+        height: 100%;
     }
     
     VerticalScroll {
@@ -36,11 +53,13 @@ class MarkdownViewerApp(App):
         Binding("d", "toggle_dark", "Dark mode", show=True),
         Binding("r", "toggle_raw", "Raw/Rendered", show=True),
         Binding("o", "open_browser", "Open in browser", show=True),
+        Binding("f", "toggle_file_tree", "File tree", show=True),
         Binding("q", "quit", "Quit", show=True)
     ]
 
-    # Reactive variable to track if we're showing raw markdown
+    # Reactive variables
     show_raw = reactive(False)
+    show_file_tree = reactive(False)
 
     def __init__(self, markdown_path: Path = None):
         super().__init__()
@@ -52,25 +71,30 @@ class MarkdownViewerApp(App):
         elif self.markdown_path:
             self.markdown_content = f"# Error\n\nFile not found: {self.markdown_path}"
         else:
-            self.markdown_content = "# Welcome to Markdown Viewer\n\nPlease provide a markdown file as an argument:\n\n```\npython main.py <path_to_markdown_file>\n```"
+            self.markdown_content = "# Welcome to Markdown Viewer\n\nPlease provide a markdown file as an argument:\n\n```\npython main.py <path_to_markdown_file>\n```\n\nOr press 'f' to open the file tree and browse for markdown files."
 
     def compose(self) -> ComposeResult:
-        # Create header with custom title
-        if self.markdown_path:
-            header_title = f"Markdown Viewer - {self.markdown_path.name}"
-        else:
-            header_title = "Markdown Viewer - No file loaded"
-        
         yield Header(show_clock=True)
-        with VerticalScroll(id="content-container"):
-            yield Markdown(self.markdown_content, id="markdown-view")
-            yield Static(self.markdown_content, id="raw-view")
+        
+        with Horizontal():
+            # File tree panel
+            yield DirectoryTree(
+                Path.cwd(),
+                id="file-tree"
+            )
+            
+            # Main content area
+            with VerticalScroll(id="content-area"):
+                yield Markdown(self.markdown_content, id="markdown-view")
+                yield Static(self.markdown_content, id="raw-view")
+        
         yield Footer()
 
     def on_mount(self) -> None:
         """Initialize the view state when the app mounts."""
         self.update_view()
         self.update_header_title()
+        self.update_file_tree_visibility()
 
     def update_header_title(self) -> None:
         """Update the header title with filename and current mode."""
@@ -85,6 +109,10 @@ class MarkdownViewerApp(App):
         self.update_view()
         self.update_header_title()
 
+    def watch_show_file_tree(self, show_file_tree: bool) -> None:
+        """React to changes in the show_file_tree state."""
+        self.update_file_tree_visibility()
+
     def update_view(self) -> None:
         """Update which view is displayed based on show_raw state."""
         markdown_view = self.query_one("#markdown-view")
@@ -97,6 +125,43 @@ class MarkdownViewerApp(App):
             markdown_view.display = True
             raw_view.display = False
 
+    def update_file_tree_visibility(self) -> None:
+        """Update the visibility of the file tree panel."""
+        file_tree = self.query_one("#file-tree")
+        if self.show_file_tree:
+            file_tree.add_class("visible")
+        else:
+            file_tree.remove_class("visible")
+
+    def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
+        """Handle file selection from the directory tree."""
+        # Only process markdown files
+        if event.path.suffix.lower() in ['.md', '.markdown']:
+            self.load_markdown_file(event.path)
+
+    def load_markdown_file(self, path: Path) -> None:
+        """Load a markdown file and update the display."""
+        try:
+            self.markdown_path = path
+            self.markdown_content = path.read_text()
+            
+            # Update both views with new content
+            markdown_view = self.query_one("#markdown-view", Markdown)
+            raw_view = self.query_one("#raw-view", Static)
+            
+            markdown_view.update(self.markdown_content)
+            raw_view.update(self.markdown_content)
+            
+            # Update the header
+            self.update_header_title()
+            
+        except Exception as e:
+            self.markdown_content = f"# Error\n\nCould not read file: {path}\n\nError: {str(e)}"
+            markdown_view = self.query_one("#markdown-view", Markdown)
+            raw_view = self.query_one("#raw-view", Static)
+            markdown_view.update(self.markdown_content)
+            raw_view.update(self.markdown_content)
+
     def action_toggle_dark(self) -> None:
         """Toggle dark mode."""
         self.theme = "textual-dark" if self.theme == "textual-light" else "textual-light"
@@ -104,6 +169,10 @@ class MarkdownViewerApp(App):
     def action_toggle_raw(self) -> None:
         """Toggle between raw and rendered markdown view."""
         self.show_raw = not self.show_raw
+
+    def action_toggle_file_tree(self) -> None:
+        """Toggle the file tree panel."""
+        self.show_file_tree = not self.show_file_tree
 
     def action_open_browser(self) -> None:
         """Open the markdown in the default web browser (respects current view mode)."""
