@@ -67,7 +67,7 @@ VerticalScroll {{
 }}
 
 Markdown {{
-    margin: 1 2;
+    # margin: 1 2;
 }}
 
 Markdown .search-match {{
@@ -82,7 +82,7 @@ Markdown .search-match-current {{
 }}
 
 Static {{
-    margin: 1 2;
+    # margin: 1 2;
 }}
 
 #search-input {{
